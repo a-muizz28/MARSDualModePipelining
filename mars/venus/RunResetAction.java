@@ -66,6 +66,7 @@ WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
 												 RunAssembleAction.getWarningsAreErrors());
             PipelineSimulator.getInstance().resetState();
             mainUI.getMessagesPane().getPipelineDiagramPanel().reset();
+            PipelineWindow.getInstance().resetDiagram();
             if (Globals.program.getBackStepper() != null) {
                Globals.program.getBackStepper().setEnabled(ExecutionController.backsteppingSupported());
             }
