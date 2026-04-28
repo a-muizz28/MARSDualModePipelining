@@ -1,6 +1,7 @@
    package mars.venus;
    import mars.*;
    import mars.util.*;
+   import mars.simulator.*;
    import mars.mips.hardware.*;
    import java.util.*;
    import java.io.*;
@@ -97,6 +98,10 @@ WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
                // added logic to receive any warnings and output them.... DPS 11/28/06
                ErrorList warnings = Globals.program.assemble(MIPSprogramsToAssemble, extendedAssemblerEnabled,
                                                              warningsAreErrors);
+               PipelineSimulator.getInstance().resetState();
+               if (Globals.program.getBackStepper() != null) {
+                  Globals.program.getBackStepper().setEnabled(ExecutionController.backsteppingSupported());
+               }
                if (warnings.warningsOccurred()) {
                   mainUI.messagesPane.postMarsMessage(warnings.generateWarningReport());
                }
@@ -152,6 +157,7 @@ WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
                      }
                   }
                   FileStatus.setAssembled(false);
+                  PipelineSimulator.getInstance().resetState();
                   FileStatus.set(FileStatus.NOT_EDITED);
                }
          }               

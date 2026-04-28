@@ -1,7 +1,7 @@
    package mars.venus;
 	import mars.*;
-	import mars.simulator.*;
-	import mars.mips.hardware.*;
+   import mars.simulator.*;
+   import mars.mips.hardware.*;
    import java.awt.*;
    import java.awt.event.*;
    import javax.swing.*;
@@ -78,7 +78,14 @@ WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
          executePane.getCoprocessor0Window().updateRegisters();
          executePane.getDataSegmentWindow().updateValues();
          if (!done) {
-            executePane.getTextSegmentWindow().highlightStepAtPC();
+            if (ExecutionController.isPipelinedMode() &&
+                PipelineSimulator.getInstance().getLastCommittedAddress() >= 0) {
+               executePane.getTextSegmentWindow().highlightStepAtAddress(
+                  PipelineSimulator.getInstance().getLastCommittedAddress());
+            }
+            else {
+               executePane.getTextSegmentWindow().highlightStepAtPC();
+            }
             FileStatus.set(FileStatus.RUNNABLE);
          } 
          if (done) {

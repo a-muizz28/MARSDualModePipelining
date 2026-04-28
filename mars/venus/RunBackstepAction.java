@@ -1,5 +1,6 @@
    package mars.venus;
    import mars.*;
+   import mars.simulator.ExecutionController;
    import mars.mips.hardware.*;
    import java.awt.*;
    import java.awt.event.*;
@@ -54,6 +55,11 @@ WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
          if(!FileStatus.isAssembled()){
                      // note: this should never occur since backstepping is only enabled after successful assembly.
             JOptionPane.showMessageDialog(mainUI,"The program must be assembled before it can be run.");
+            return;
+         }
+         if (ExecutionController.isPipelinedMode()) {
+            JOptionPane.showMessageDialog(mainUI,
+               "Backstep is currently unavailable in pipelined mode.");
             return;
          }
          mainUI.setStarted(true);

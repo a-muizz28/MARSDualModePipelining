@@ -143,10 +143,18 @@ WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
       
          if (simulatorThread != null) {
             simulatorThread.setStop(actor);
-            for (StopListener l : stopListeners) {
-               l.stopped(this);
-            }
+            signalExternalStopListeners();
             simulatorThread = null;
+         }
+      }
+
+      /**
+       * Notify registered stop listeners even when simulation is being driven
+       * by an alternate execution engine.
+       */
+       public void signalExternalStopListeners() {
+         for (StopListener l : stopListeners) {
+            l.stopped(this);
          }
       }
    
@@ -184,6 +192,22 @@ WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
          this.setChanged();
          this.notifyObservers(new SimulatorNotice(SimulatorNotice.SIMULATOR_STOP,
             maxSteps, RunSpeedPanel.getInstance().getRunSpeed(), programCounter) );
+      }
+
+      /**
+       * Publish simulation-start notifications for external engines that reuse
+       * existing execute-pane observer behavior.
+       */
+       public void publishExecutionStart(int maxSteps, int programCounter) {
+         notifyObserversOfExecutionStart(maxSteps, programCounter);
+      }
+
+      /**
+       * Publish simulation-stop notifications for external engines that reuse
+       * existing execute-pane observer behavior.
+       */
+       public void publishExecutionStop(int maxSteps, int programCounter) {
+         notifyObserversOfExecutionStop(maxSteps, programCounter);
       }
    	 
    	 

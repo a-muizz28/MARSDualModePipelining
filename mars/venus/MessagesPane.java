@@ -47,6 +47,7 @@ WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
     public class MessagesPane extends JTabbedPane{
       JTextArea assemble, run;
       JPanel assembleTab, runTab;
+      private PipelineDiagramPanel pipelineDiagramPanel;
    	// These constants are designed to keep scrolled contents of the 
    	// two message areas from becoming overwhelmingly large (which
    	// seems to slow things down as new text is appended).  Once it
@@ -165,10 +166,14 @@ WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
          runTab.add(createBoxForButton(runTabClearButton),BorderLayout.WEST);
          runTab.add(new JScrollPane(run, ScrollPaneConstants.VERTICAL_SCROLLBAR_AS_NEEDED, 
                        ScrollPaneConstants.HORIZONTAL_SCROLLBAR_AS_NEEDED), BorderLayout.CENTER);				
+         pipelineDiagramPanel = new PipelineDiagramPanel();
+
          this.addTab("Mars Messages", assembleTab);
          this.addTab("Run I/O", runTab);
+         this.addTab("Pipeline", pipelineDiagramPanel);
          this.setToolTipTextAt(0,"Messages produced by Run menu. Click on assemble error message to select erroneous line");
          this.setToolTipTextAt(1,"Simulated MIPS console input and output");
+         this.setToolTipTextAt(2,"5-stage MIPS pipeline visualization (Pipelined execution mode only)");
       }
    	
       // Center given button in a box, centered vertically and 6 pixels on left and right
@@ -332,7 +337,17 @@ WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
        public void selectRunMessageTab() {
          setSelectedComponent(runTab);
       }
-   
+
+      /** Make the Pipeline visualization tab current. */
+      public void selectPipelineTab() {
+         setSelectedComponent(pipelineDiagramPanel);
+      }
+
+      /** The pipeline diagram panel (for update/reset calls from execution actions). */
+      public PipelineDiagramPanel getPipelineDiagramPanel() {
+         return pipelineDiagramPanel;
+      }
+
     	/**
    	 *  Method used by the SystemIO class to get interactive user input
    	 *  requested by a running MIPS program (e.g. syscall #5 to read an

@@ -1,6 +1,7 @@
    package mars.venus;
    import mars.*;
    import mars.mips.dump.*;
+   import mars.simulator.ExecutionController;
    import javax.swing.*;
    import java.awt.*;
    import java.awt.event.*;
@@ -71,7 +72,9 @@ WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
       private JMenu file, run, window, help, edit, settings;
       private JMenuItem fileNew, fileOpen, fileClose, fileCloseAll, fileSave, fileSaveAs, fileSaveAll, fileDumpMemory, filePrint, fileExit;
       private JMenuItem editUndo, editRedo, editCut, editCopy, editPaste, editFindReplace, editSelectAll;
-      private JMenuItem runGo, runStep, runBackstep, runReset, runAssemble, runStop, runPause, runClearBreakpoints, runToggleBreakpoints;
+      private JMenuItem runGo, runStep, runStepCycle, runBackstep, runReset, runAssemble, runStop, runPause, runClearBreakpoints, runToggleBreakpoints;
+      private JMenu runExecutionModel;
+      private JRadioButtonMenuItem runExecutionClassic, runExecutionPipelined;
       private JCheckBoxMenuItem settingsLabel, settingsPopupInput, settingsValueDisplayBase, settingsAddressDisplayBase,
               settingsExtended, settingsAssembleOnOpen, settingsAssembleAll, settingsWarningsAreErrors, settingsStartAtMain,
       		  settingsDelayedBranching, settingsProgramArguments, settingsSelfModifyingCode;
@@ -94,7 +97,8 @@ WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
       EditRedoAction editRedoAction;
       private Action editCutAction, editCopyAction, editPasteAction, editFindReplaceAction, editSelectAllAction;
       private Action runAssembleAction, runGoAction, runStepAction, runBackstepAction, runResetAction, 
-                     runStopAction, runPauseAction, runClearBreakpointsAction, runToggleBreakpointsAction;
+                     runStopAction, runPauseAction, runClearBreakpointsAction, runToggleBreakpointsAction,
+                     runStepCycleAction, runSetClassicExecutionModelAction, runSetPipelineExecutionModelAction;
       private Action settingsLabelAction, settingsPopupInputAction, settingsValueDisplayBaseAction, settingsAddressDisplayBaseAction,
                      settingsExtendedAction, settingsAssembleOnOpenAction, settingsAssembleAllAction,
       					settingsWarningsAreErrorsAction, settingsStartAtMainAction, settingsProgramArgumentsAction,
@@ -332,6 +336,11 @@ WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
                									  "Run one step at a time", KeyEvent.VK_T,
                									  KeyStroke.getKeyStroke( KeyEvent.VK_F7, 0),
                									  mainUI);	
+            runStepCycleAction = new RunStepCycleAction("Step Cycle",
+                                            new ImageIcon(tk.getImage(cs.getResource(Globals.imagesPath+"StepForward22.png"))),
+              									  "Advance one pipeline cycle (pipelined mode only)", KeyEvent.VK_Y,
+              									  KeyStroke.getKeyStroke( KeyEvent.VK_F6, 0),
+              									  mainUI);
             runBackstepAction = new RunBackstepAction("Backstep", 
                                             new ImageIcon(tk.getImage(cs.getResource(Globals.imagesPath+"StepBack22.png"))),
                									  "Undo the last step", KeyEvent.VK_B,
@@ -364,6 +373,18 @@ WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
                									  KeyEvent.VK_T,
                									  KeyStroke.getKeyStroke( KeyEvent.VK_T, Toolkit.getDefaultToolkit().getMenuShortcutKeyMask()),
                									  mainUI);  
+            runSetClassicExecutionModelAction = new RunSetExecutionModelAction("Classic (current MARS)",
+                                            null,
+              									  "Instruction-at-a-time simulation engine",
+              									  null, null,
+              									  mainUI,
+              									  ExecutionController.EXECUTION_MODEL_CLASSIC);
+            runSetPipelineExecutionModelAction = new RunSetExecutionModelAction("Pipelined (cycle-based)",
+                                            null,
+              									  "Cycle-based five-stage pipeline simulation engine",
+              									  null, null,
+              									  mainUI,
+              									  ExecutionController.EXECUTION_MODEL_PIPELINED);
             settingsLabelAction = new SettingsLabelAction("Show Labels Window (symbol table)",
                                             null,
                									  "Toggle visibility of Labels window (symbol table) in the Execute tab",
@@ -550,6 +571,8 @@ WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
          runGo.setIcon(new ImageIcon(tk.getImage(cs.getResource(Globals.imagesPath+"Play16.png"))));//"Play16.gif"))));
          runStep = new JMenuItem(runStepAction);
          runStep.setIcon(new ImageIcon(tk.getImage(cs.getResource(Globals.imagesPath+"StepForward16.png"))));//"MyStepForward16.gif"))));
+         runStepCycle = new JMenuItem(runStepCycleAction);
+         runStepCycle.setIcon(new ImageIcon(tk.getImage(cs.getResource(Globals.imagesPath+"StepForward16.png"))));
          runBackstep = new JMenuItem(runBackstepAction);
          runBackstep.setIcon(new ImageIcon(tk.getImage(cs.getResource(Globals.imagesPath+"StepBack16.png"))));//"MyStepBack16.gif"))));
          runReset = new JMenuItem(runResetAction);
@@ -566,10 +589,23 @@ WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
          run.add(runAssemble);
          run.add(runGo);
          run.add(runStep);
+         run.add(runStepCycle);
          run.add(runBackstep);
          run.add(runPause);
          run.add(runStop);
          run.add(runReset);
+         run.addSeparator();
+         runExecutionModel = new JMenu("Execution Model");
+         runExecutionClassic = new JRadioButtonMenuItem(runSetClassicExecutionModelAction);
+         runExecutionPipelined = new JRadioButtonMenuItem(runSetPipelineExecutionModelAction);
+         ButtonGroup executionModeButtonGroup = new ButtonGroup();
+         executionModeButtonGroup.add(runExecutionClassic);
+         executionModeButtonGroup.add(runExecutionPipelined);
+         runExecutionClassic.setSelected(ExecutionController.isClassicMode());
+         runExecutionPipelined.setSelected(ExecutionController.isPipelinedMode());
+         runExecutionModel.add(runExecutionClassic);
+         runExecutionModel.add(runExecutionPipelined);
+         run.add(runExecutionModel);
          run.addSeparator();
          run.add(runClearBreakpoints);
          run.add(runToggleBreakpoints);
@@ -745,6 +781,10 @@ WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
      */
        void setMenuState(int status) {
          menuState = status; 
+         if (runExecutionClassic != null && runExecutionPipelined != null) {
+            runExecutionClassic.setSelected(ExecutionController.isClassicMode());
+            runExecutionPipelined.setSelected(ExecutionController.isPipelinedMode());
+         }
          switch (status) {
             case FileStatus.NO_FILE:
                setMenuStateInitial();
@@ -802,12 +842,15 @@ WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
          runAssembleAction.setEnabled(false);
          runGoAction.setEnabled(false);
          runStepAction.setEnabled(false);
+         runStepCycleAction.setEnabled(false);
          runBackstepAction.setEnabled(false);
          runResetAction.setEnabled(false);
          runStopAction.setEnabled(false);
          runPauseAction.setEnabled(false);
          runClearBreakpointsAction.setEnabled(false);
          runToggleBreakpointsAction.setEnabled(false);
+         runSetClassicExecutionModelAction.setEnabled(true);
+         runSetPipelineExecutionModelAction.setEnabled(true);
          helpHelpAction.setEnabled(true);
          helpAboutAction.setEnabled(true);
          editUndoAction.updateUndoState();
@@ -842,6 +885,7 @@ WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
          if (!Globals.getSettings().getBooleanSetting(mars.Settings.ASSEMBLE_ALL_ENABLED)) {
             runGoAction.setEnabled(false);
             runStepAction.setEnabled(false);
+            runStepCycleAction.setEnabled(false);
             runBackstepAction.setEnabled(false);
             runResetAction.setEnabled(false);
             runStopAction.setEnabled(false);
@@ -849,6 +893,8 @@ WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
             runClearBreakpointsAction.setEnabled(false);
             runToggleBreakpointsAction.setEnabled(false);
          } 
+         runSetClassicExecutionModelAction.setEnabled(true);
+         runSetPipelineExecutionModelAction.setEnabled(true);
          helpHelpAction.setEnabled(true);
          helpAboutAction.setEnabled(true);
          editUndoAction.updateUndoState();
@@ -880,12 +926,15 @@ WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
          runAssembleAction.setEnabled(true);
          runGoAction.setEnabled(false);
          runStepAction.setEnabled(false);
+         runStepCycleAction.setEnabled(false);
          runBackstepAction.setEnabled(false);
          runResetAction.setEnabled(false);
          runStopAction.setEnabled(false);
          runPauseAction.setEnabled(false);
          runClearBreakpointsAction.setEnabled(false);
          runToggleBreakpointsAction.setEnabled(false);
+         runSetClassicExecutionModelAction.setEnabled(true);
+         runSetPipelineExecutionModelAction.setEnabled(true);
          helpHelpAction.setEnabled(true);
          helpAboutAction.setEnabled(true);
          editUndoAction.updateUndoState();
@@ -916,12 +965,15 @@ WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
          runAssembleAction.setEnabled(false);
          runGoAction.setEnabled(false);
          runStepAction.setEnabled(false);
+         runStepCycleAction.setEnabled(false);
          runBackstepAction.setEnabled(false);
          runResetAction.setEnabled(false);
          runStopAction.setEnabled(false);
          runPauseAction.setEnabled(false);
          runClearBreakpointsAction.setEnabled(false);
          runToggleBreakpointsAction.setEnabled(false);
+         runSetClassicExecutionModelAction.setEnabled(true);
+         runSetPipelineExecutionModelAction.setEnabled(true);
          helpHelpAction.setEnabled(true);
          helpAboutAction.setEnabled(true);
          editUndoAction.updateUndoState();
@@ -952,13 +1004,18 @@ WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
          runAssembleAction.setEnabled(true);
          runGoAction.setEnabled(true);
          runStepAction.setEnabled(true);
+         runStepCycleAction.setEnabled(ExecutionController.cycleSteppingSupported());
          runBackstepAction.setEnabled(
-            (Globals.getSettings().getBackSteppingEnabled()&& !Globals.program.getBackStepper().empty())
+            (ExecutionController.backsteppingSupported() &&
+             Globals.getSettings().getBackSteppingEnabled() &&
+             !Globals.program.getBackStepper().empty())
              ? true : false);
          runResetAction.setEnabled(true);
          runStopAction.setEnabled(false);
          runPauseAction.setEnabled(false);
          runToggleBreakpointsAction.setEnabled(true);
+         runSetClassicExecutionModelAction.setEnabled(true);
+         runSetPipelineExecutionModelAction.setEnabled(true);
          helpHelpAction.setEnabled(true);
          helpAboutAction.setEnabled(true);
          editUndoAction.updateUndoState();
@@ -989,11 +1046,14 @@ WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
          runAssembleAction.setEnabled(false);
          runGoAction.setEnabled(false);
          runStepAction.setEnabled(false);
+         runStepCycleAction.setEnabled(false);
          runBackstepAction.setEnabled(false);
          runResetAction.setEnabled(false);
          runStopAction.setEnabled(true);
          runPauseAction.setEnabled(true);
          runToggleBreakpointsAction.setEnabled(false);
+         runSetClassicExecutionModelAction.setEnabled(false);
+         runSetPipelineExecutionModelAction.setEnabled(false);
          helpHelpAction.setEnabled(true);
          helpAboutAction.setEnabled(true);
          editUndoAction.setEnabled(false);//updateUndoState(); // DPS 10 Jan 2008
@@ -1023,13 +1083,18 @@ WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
          runAssembleAction.setEnabled(true);
          runGoAction.setEnabled(false);
          runStepAction.setEnabled(false);
+         runStepCycleAction.setEnabled(false);
          runBackstepAction.setEnabled(
-            (Globals.getSettings().getBackSteppingEnabled()&& !Globals.program.getBackStepper().empty())
+            (ExecutionController.backsteppingSupported() &&
+             Globals.getSettings().getBackSteppingEnabled() &&
+             !Globals.program.getBackStepper().empty())
              ? true : false);
          runResetAction.setEnabled(true);
          runStopAction.setEnabled(false);
          runPauseAction.setEnabled(false);
          runToggleBreakpointsAction.setEnabled(true);
+         runSetClassicExecutionModelAction.setEnabled(true);
+         runSetPipelineExecutionModelAction.setEnabled(true);
          helpHelpAction.setEnabled(true);
          helpAboutAction.setEnabled(true);
          editUndoAction.updateUndoState();

@@ -1,0 +1,13 @@
+# Compiled Java class files
+*.class
+
+# Executable JAR
+*.jar
+
+# IntelliJ IDEA project files
+.idea/
+*.iml
+
+# Build output
+build/
+out/

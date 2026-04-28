@@ -45,7 +45,7 @@ WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
       }
    		 
        public void actionPerformed(ActionEvent e) {
-         Simulator.getInstance().stopExecution(this);
+         ExecutionController.stopExecution(this);
          // RunGoAction's "paused" method will do the cleanup.
       }
    	   	

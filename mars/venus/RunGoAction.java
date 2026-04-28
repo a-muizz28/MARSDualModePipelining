@@ -114,7 +114,14 @@ WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
          }
          mainUI.getMessagesPane().selectMarsMessageTab();
          executePane.getTextSegmentWindow().setCodeHighlighting(true);
-         executePane.getTextSegmentWindow().highlightStepAtPC();
+         if (ExecutionController.isPipelinedMode() &&
+             PipelineSimulator.getInstance().getLastCommittedAddress() >= 0) {
+            executePane.getTextSegmentWindow().highlightStepAtAddress(
+               PipelineSimulator.getInstance().getLastCommittedAddress());
+         }
+         else {
+            executePane.getTextSegmentWindow().highlightStepAtPC();
+         }
          executePane.getRegistersWindow().updateRegisters();
          executePane.getCoprocessor1Window().updateRegisters();
          executePane.getCoprocessor0Window().updateRegisters();

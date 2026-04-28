@@ -1,6 +1,7 @@
    package mars.venus;
    import mars.*;
    import mars.util.*;
+   import mars.simulator.*;
    import mars.mips.hardware.*;
    import java.awt.*;
    import java.awt.event.*;
@@ -63,6 +64,11 @@ WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
             Globals.program.assemble(RunAssembleAction.getMIPSprogramsToAssemble(),
 				                         RunAssembleAction.getExtendedAssemblerEnabled(),
 												 RunAssembleAction.getWarningsAreErrors());
+            PipelineSimulator.getInstance().resetState();
+            mainUI.getMessagesPane().getPipelineDiagramPanel().reset();
+            if (Globals.program.getBackStepper() != null) {
+               Globals.program.getBackStepper().setEnabled(ExecutionController.backsteppingSupported());
+            }
          } 
              catch (ProcessingException pe) {
 				 mainUI.getMessagesPane().postMarsMessage(

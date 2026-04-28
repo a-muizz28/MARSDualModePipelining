@@ -359,8 +359,8 @@ WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
     **/	
        public boolean simulateFromPC(int[] breakPoints, int maxSteps, AbstractAction a) throws ProcessingException {
          steppedExecution = false;
-         Simulator sim = Simulator.getInstance();
-         return sim.simulate(this, RegisterFile.getProgramCounter(), maxSteps, breakPoints, a);
+         return ExecutionController.simulate(this, RegisterFile.getProgramCounter(), maxSteps,
+            breakPoints, a, ExecutionController.STEP_MODE_INSTRUCTION);
       }
    
    
@@ -374,8 +374,22 @@ WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
     **/
        public boolean simulateStepAtPC(AbstractAction a) throws ProcessingException {
          steppedExecution = true;
-         Simulator sim = Simulator.getInstance();
-         boolean done = sim.simulate(this, RegisterFile.getProgramCounter(), 1, null,a);
+         boolean done = ExecutionController.simulate(this, RegisterFile.getProgramCounter(), 1,
+            null, a, ExecutionController.STEP_MODE_INSTRUCTION);
+         return done;
+      }
+
+   /**
+    * Simulates one pipeline cycle at current PC when pipelined mode is selected.
+    * In classic mode this is equivalent to stepping one instruction.
+    * @param a the GUI component responsible for this call.
+    * @return true if execution completed and false otherwise.
+    * @throws ProcessingException if runtime errors occur.
+    **/
+       public boolean simulateCycleAtPC(AbstractAction a) throws ProcessingException {
+         steppedExecution = true;
+         boolean done = ExecutionController.simulate(this, RegisterFile.getProgramCounter(), 1,
+            null, a, ExecutionController.STEP_MODE_CYCLE);
          return done;
       }
    
