@@ -60,6 +60,7 @@ public class PipelineSimulator {
    private MIPSprogram currentProgram;
 
    private int lastCommittedAddress = -1;
+   private CycleEvent lastCycleEvent = CycleEvent.NONE;
 
    /** various reasons for simulate to end... */
    public static final int BREAKPOINT = Simulator.BREAKPOINT;
@@ -86,6 +87,7 @@ public class PipelineSimulator {
       state = null;
       currentProgram = null;
       lastCommittedAddress = -1;
+      lastCycleEvent = CycleEvent.NONE;
    }
 
    public synchronized int getLastCommittedAddress() {
@@ -270,6 +272,11 @@ public class PipelineSimulator {
       EXMEM nextExmem = new EXMEM();
       MEMWB nextMemwb = new MEMWB();
 
+      // Tracking variables for CycleEvent (read at end to build the UI event)
+      int fwdExExReg      = -1;  // register forwarded EX/MEM → ID/EX (-1 = none)
+      int fwdMemExReg     = -1;  // register forwarded MEM/WB → ID/EX (-1 = none)
+      int capturedHazardReg = 0; // register causing a load-use stall
+
       int retiredThisCycle = 0;
       int committedAddressThisCycle = -1;
 
@@ -331,6 +338,20 @@ public class PipelineSimulator {
       boolean branchTaken = false;
       int branchTarget = 0;
       if (state.idex.valid) {
+         // Detect forwarding paths for CycleEvent (mirrors applyForwarding* logic)
+         boolean exCanFwd  = state.exmem.valid && state.exmem.regWrite
+                             && !state.exmem.memRead && state.exmem.writeReg != 0;
+         boolean memCanFwd = state.memwb.valid && state.memwb.regWrite
+                             && state.memwb.writeReg != 0;
+         if (state.idex.readRs) {
+            if      (exCanFwd  && state.exmem.writeReg == state.idex.rs) fwdExExReg  = state.idex.rs;
+            else if (memCanFwd && state.memwb.writeReg == state.idex.rs) fwdMemExReg = state.idex.rs;
+         }
+         if (state.idex.readRt) {
+            if      (exCanFwd  && state.exmem.writeReg == state.idex.rt && fwdExExReg  < 0) fwdExExReg  = state.idex.rt;
+            else if (memCanFwd && state.memwb.writeReg == state.idex.rt && fwdMemExReg < 0) fwdMemExReg = state.idex.rt;
+         }
+
          int opA = applyForwardingA(state.idex, state.exmem, state.memwb, state.idex.rsValue);
          int opB = applyForwardingB(state.idex, state.exmem, state.memwb, state.idex.rtValue);
          int alu = 0;
@@ -524,6 +545,7 @@ public class PipelineSimulator {
          if (hazardReg != 0 &&
              ((decoded.readRs && decoded.rs == hazardReg) || (decoded.readRt && decoded.rt == hazardReg))) {
             stall = true;
+            capturedHazardReg = hazardReg;
          }
          else {
             nextIdex.valid = true;
@@ -597,6 +619,15 @@ public class PipelineSimulator {
          result.done = true;
          result.reason = CLIFF_TERMINATION;
       }
+
+      // Publish what happened this cycle so the UI visualizer can annotate it.
+      int fwdType = CycleEvent.FWD_NONE;
+      if      (fwdExExReg >= 0 && fwdMemExReg >= 0) fwdType = CycleEvent.FWD_BOTH;
+      else if (fwdExExReg >= 0)                      fwdType = CycleEvent.FWD_EX_TO_EX;
+      else if (fwdMemExReg >= 0)                     fwdType = CycleEvent.FWD_MEM_TO_EX;
+      lastCycleEvent = new CycleEvent(stall, branchTaken, fwdType,
+            capturedHazardReg, fwdExExReg, fwdMemExReg);
+
       return result;
    }
 
@@ -867,6 +898,43 @@ public class PipelineSimulator {
          this.pc = pc;
          this.instruction = instruction;
       }
+   }
+
+   /**
+    * What happened during the most-recently completed pipeline cycle.
+    * Consumed by the UI visualizer to annotate stalls, flushes, and forwarding.
+    */
+   public static final class CycleEvent {
+      public static final int FWD_NONE      = 0;
+      public static final int FWD_EX_TO_EX  = 1;  // EX/MEM latch → ID/EX input
+      public static final int FWD_MEM_TO_EX = 2;  // MEM/WB latch → ID/EX input
+      public static final int FWD_BOTH      = 3;  // both paths simultaneously
+
+      public static final CycleEvent NONE =
+         new CycleEvent(false, false, FWD_NONE, -1, -1, -1);
+
+      public final boolean stallOccurred;   // load-use stall was inserted
+      public final boolean branchFlush;     // branch/jump caused a pipeline flush
+      public final int     forwardingType;  // one of FWD_* constants
+      public final int     stallReg;        // register that caused the stall (-1 = n/a)
+      public final int     fwdExExReg;      // register forwarded via EX/MEM→EX (-1 = n/a)
+      public final int     fwdMemExReg;     // register forwarded via MEM/WB→EX (-1 = n/a)
+
+      public CycleEvent(boolean stallOccurred, boolean branchFlush,
+                        int forwardingType, int stallReg,
+                        int fwdExExReg, int fwdMemExReg) {
+         this.stallOccurred  = stallOccurred;
+         this.branchFlush    = branchFlush;
+         this.forwardingType = forwardingType;
+         this.stallReg       = stallReg;
+         this.fwdExExReg     = fwdExExReg;
+         this.fwdMemExReg    = fwdMemExReg;
+      }
+   }
+
+   /** Returns what happened in the most recently completed pipeline cycle. */
+   public synchronized CycleEvent getLastCycleEvent() {
+      return lastCycleEvent;
    }
 
    /**
