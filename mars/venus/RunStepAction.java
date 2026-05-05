@@ -77,6 +77,9 @@ WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
          executePane.getCoprocessor1Window().updateRegisters();
          executePane.getCoprocessor0Window().updateRegisters();
          executePane.getDataSegmentWindow().updateValues();
+         if (ExecutionController.isPipelinedMode()) {
+            mainUI.messagesPane.getPipelineDiagramPanel().update();
+         }
          if (!done) {
             if (ExecutionController.isPipelinedMode() &&
                 PipelineSimulator.getInstance().getLastCommittedAddress() >= 0) {

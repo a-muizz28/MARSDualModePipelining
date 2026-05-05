@@ -80,9 +80,7 @@ public class RunStepCycleAction extends GuiAction {
       executePane.getCoprocessor0Window().updateRegisters();
       executePane.getDataSegmentWindow().updateValues();
 
-      // Refresh both the tab panel and the floating popup window
       mainUI.messagesPane.getPipelineDiagramPanel().update();
-      PipelineWindow.getInstance().showAndUpdate();
 
       if (!done) {
          int address = PipelineSimulator.getInstance().getLastCommittedAddress();
