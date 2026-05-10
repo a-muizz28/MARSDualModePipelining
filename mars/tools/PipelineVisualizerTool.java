@@ -13,7 +13,9 @@ import java.awt.event.*;
 import java.awt.geom.*;
 import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
 import java.util.Observable;
 
 /**
@@ -277,74 +279,127 @@ public class PipelineVisualizerTool extends AbstractMarsToolAndApplication {
       // ── Widgets ───────────────────────────────────────────────────────────
       private final JLabel            headerLabel;
       private final JLabel            hazardInfoBar;
+      private final JLabel            eventBadge;
+      private final JTextArea         explanationArea;
+      private final JButton           replayButton;
+      private final JButton           clearButton;
       private final DrawPanel         drawPanel;
       private final DefaultTableModel tableModel;
       private final JTable            table;
       private final List<Integer>     rowEvents = new ArrayList<>();
+      private final Map<String, Integer> timelineRows = new HashMap<>();
+      private final StageCard[]       stageCards = new StageCard[5];
       private final javax.swing.Timer animTimer;
 
       // ── Constructor ───────────────────────────────────────────────────────
       AnimatedPipelinePanel() {
          setLayout(new BorderLayout(0, 0));
-         setBackground(new Color(236, 240, 241));
-         setPreferredSize(new Dimension(780, 540));
+         setBackground(new Color(238, 241, 244));
+         setPreferredSize(new Dimension(1180, 740));
 
-         // Header
-         headerLabel = new JLabel(
-            "  Connect, assemble, then step to animate the pipeline.", JLabel.LEFT);
-         headerLabel.setFont(new Font(Font.SANS_SERIF, Font.PLAIN, 11));
-         headerLabel.setForeground(new Color(44, 62, 80));
-         headerLabel.setBorder(BorderFactory.createEmptyBorder(5, 8, 2, 8));
+         headerLabel = new JLabel("Connect, assemble, then use Run > Step Cycle (F6).", JLabel.LEFT);
+         headerLabel.setFont(new Font(Font.SANS_SERIF, Font.BOLD, 13));
+         headerLabel.setForeground(new Color(36, 48, 60));
 
-         // Hazard info bar (between diagram and table)
+         eventBadge = new JLabel("  idle  ", JLabel.CENTER);
+         eventBadge.setFont(new Font(Font.SANS_SERIF, Font.BOLD, 12));
+         eventBadge.setOpaque(true);
+         eventBadge.setForeground(Color.WHITE);
+         eventBadge.setBackground(new Color(108, 117, 125));
+         eventBadge.setBorder(BorderFactory.createEmptyBorder(4, 10, 4, 10));
+
+         replayButton = new JButton("Replay Cycle");
+         replayButton.setToolTipText("Replay the most recent visual cycle without executing it again");
+         replayButton.setEnabled(false);
+         replayButton.addActionListener(e -> replayLastCycle());
+
+         clearButton = new JButton("Clear Timeline");
+         clearButton.setToolTipText("Clear only the visual timeline");
+         clearButton.addActionListener(e -> reset());
+
+         JPanel headerPanel = new JPanel(new BorderLayout(8, 0));
+         headerPanel.setBorder(BorderFactory.createEmptyBorder(8, 10, 6, 10));
+         headerPanel.setBackground(new Color(238, 241, 244));
+         JPanel controls = new JPanel(new FlowLayout(FlowLayout.RIGHT, 6, 0));
+         controls.setOpaque(false);
+         controls.add(eventBadge);
+         controls.add(replayButton);
+         controls.add(clearButton);
+         headerPanel.add(headerLabel, BorderLayout.CENTER);
+         headerPanel.add(controls, BorderLayout.EAST);
+
          hazardInfoBar = new JLabel(" ", JLabel.LEFT);
-         hazardInfoBar.setFont(new Font(Font.SANS_SERIF, Font.PLAIN, 11));
+         hazardInfoBar.setFont(new Font(Font.SANS_SERIF, Font.PLAIN, 12));
          hazardInfoBar.setOpaque(true);
-         hazardInfoBar.setBackground(new Color(236, 240, 241));
-         hazardInfoBar.setForeground(new Color(127, 140, 141));
-         hazardInfoBar.setBorder(BorderFactory.createEmptyBorder(3, 8, 3, 8));
+         hazardInfoBar.setBackground(new Color(238, 241, 244));
+         hazardInfoBar.setForeground(new Color(96, 105, 114));
+         hazardInfoBar.setBorder(BorderFactory.createEmptyBorder(6, 10, 6, 10));
 
-         // Draw panel (stage boxes + arcs)
          drawPanel = new DrawPanel();
-         drawPanel.setPreferredSize(new Dimension(780, 195));
-         drawPanel.setMinimumSize(new Dimension(400, 140));
+         drawPanel.setPreferredSize(new Dimension(1120, 190));
+         drawPanel.setMinimumSize(new Dimension(600, 150));
 
-         // Wrap draw panel + hazard bar
+         JPanel stagePanel = new JPanel(new GridLayout(1, 5, 8, 0));
+         stagePanel.setBackground(new Color(238, 241, 244));
+         stagePanel.setBorder(BorderFactory.createEmptyBorder(8, 10, 8, 10));
+         for (int i = 0; i < stageCards.length; i++) {
+            stageCards[i] = new StageCard(STAGE_NAMES[i], STAGE_COLORS[i]);
+            stagePanel.add(stageCards[i]);
+         }
+
          JPanel topPanel = new JPanel(new BorderLayout(0, 0));
-         topPanel.setBackground(new Color(236, 240, 241));
+         topPanel.setBackground(new Color(238, 241, 244));
          topPanel.add(drawPanel, BorderLayout.CENTER);
-         topPanel.add(hazardInfoBar, BorderLayout.SOUTH);
+         topPanel.add(hazardInfoBar, BorderLayout.NORTH);
+         topPanel.add(stagePanel, BorderLayout.SOUTH);
 
-         // Timing table
-         tableModel = new DefaultTableModel(
-               new String[]{"#", "IF", "ID", "EX", "MEM", "WB"}, 0) {
+         tableModel = new DefaultTableModel(new String[]{"Instruction"}, 0) {
             @Override public boolean isCellEditable(int r, int c) { return false; }
          };
          table = new JTable(tableModel);
-         table.setFont(new Font(Font.MONOSPACED, Font.PLAIN, 11));
-         table.getTableHeader().setFont(new Font(Font.MONOSPACED, Font.BOLD, 11));
-         table.setRowHeight(17);
-         table.setGridColor(new Color(213, 216, 220));
+         table.setAutoResizeMode(JTable.AUTO_RESIZE_OFF);
+         table.setFont(new Font(Font.MONOSPACED, Font.PLAIN, 12));
+         table.getTableHeader().setFont(new Font(Font.MONOSPACED, Font.BOLD, 12));
+         table.setRowHeight(24);
+         table.setGridColor(new Color(205, 211, 218));
          table.setShowGrid(true);
          table.setDefaultRenderer(Object.class, new TimingRenderer());
-         table.getColumnModel().getColumn(0).setPreferredWidth(50);
-         table.getColumnModel().getColumn(0).setMaxWidth(60);
-         for (int i = 1; i <= 5; i++)
-            table.getColumnModel().getColumn(i).setPreferredWidth(170);
+         table.getColumnModel().getColumn(0).setPreferredWidth(285);
 
          JScrollPane tableScroll = new JScrollPane(table,
                ScrollPaneConstants.VERTICAL_SCROLLBAR_AS_NEEDED,
                ScrollPaneConstants.HORIZONTAL_SCROLLBAR_AS_NEEDED);
-         tableScroll.setBorder(
-               BorderFactory.createMatteBorder(1, 0, 0, 0, new Color(189, 195, 199)));
+         tableScroll.setBorder(BorderFactory.createTitledBorder(
+               BorderFactory.createLineBorder(new Color(189, 195, 199)),
+               "Pipeline timing diagram (instructions x cycles)"));
 
-         JSplitPane split = new JSplitPane(JSplitPane.VERTICAL_SPLIT, topPanel, tableScroll);
-         split.setResizeWeight(0.42);
-         split.setDividerSize(5);
-         split.setBorder(null);
+         explanationArea = new JTextArea(3, 20);
+         explanationArea.setEditable(false);
+         explanationArea.setLineWrap(true);
+         explanationArea.setWrapStyleWord(true);
+         explanationArea.setFont(new Font(Font.SANS_SERIF, Font.PLAIN, 12));
+         explanationArea.setForeground(new Color(36, 48, 60));
+         explanationArea.setBackground(new Color(250, 251, 252));
+         explanationArea.setBorder(BorderFactory.createEmptyBorder(8, 10, 8, 10));
+         JScrollPane explanationScroll = new JScrollPane(explanationArea,
+               ScrollPaneConstants.VERTICAL_SCROLLBAR_AS_NEEDED,
+               ScrollPaneConstants.HORIZONTAL_SCROLLBAR_NEVER);
+         explanationScroll.setBorder(BorderFactory.createTitledBorder(
+               BorderFactory.createLineBorder(new Color(189, 195, 199)),
+               "What happened this cycle"));
 
-         add(headerLabel, BorderLayout.NORTH);
-         add(split,       BorderLayout.CENTER);
+         JSplitPane lowerSplit = new JSplitPane(JSplitPane.VERTICAL_SPLIT, tableScroll, explanationScroll);
+         lowerSplit.setResizeWeight(0.78);
+         lowerSplit.setDividerSize(6);
+         lowerSplit.setBorder(null);
+
+         JSplitPane mainSplit = new JSplitPane(JSplitPane.VERTICAL_SPLIT, topPanel, lowerSplit);
+         mainSplit.setResizeWeight(0.46);
+         mainSplit.setDividerSize(6);
+         mainSplit.setBorder(null);
+
+         add(headerPanel, BorderLayout.NORTH);
+         add(mainSplit, BorderLayout.CENTER);
 
          animTimer = new javax.swing.Timer(16, e -> tick());
          animTimer.start();
@@ -401,21 +456,14 @@ public class PipelineVisualizerTool extends AbstractMarsToolAndApplication {
 
          // Hazard info bar
          updateHazardBar(lastCycleEvent);
+         updateEventBadge(lastCycleEvent);
+         updateStageCards(currentStages, lastCycleEvent);
+         updateExplanation(lastCycleEvent);
+         appendTimingColumn(cycleCount, currentStages, lastCycleEvent);
 
-         // Timing table row
-         int eventType = lastCycleEvent.stallOccurred ? EV_STALL
-                       : lastCycleEvent.branchFlush   ? EV_FLUSH
-                       : (lastCycleEvent.forwardingType != PipelineSimulator.CycleEvent.FWD_NONE) ? EV_FORWARD
-                       : EV_NORMAL;
-         rowEvents.add(eventType);
-         tableModel.addRow(new Object[]{
-            cycleCount,
-            fmtCell(stages[0]), fmtCell(stages[1]),
-            fmtCell(stages[2]), fmtCell(stages[3]),
-            fmtCell(prevMemwb)
-         });
          scrollToLastRow();
          prevMemwb = stages[3];
+         replayButton.setEnabled(true);
       }
 
       void advanceNormal(int pc, String instr) {
@@ -435,8 +483,11 @@ public class PipelineVisualizerTool extends AbstractMarsToolAndApplication {
          hazardInfoBar.setForeground(new Color(127, 140, 141));
          hazardInfoBar.setText("  Sequential execution — instruction flows through all stages in order.");
 
-         rowEvents.add(EV_NORMAL);
-         tableModel.addRow(new Object[]{normalStepCount, instr, instr, instr, instr, instr});
+         updateEventBadge(lastCycleEvent);
+         ensureCycleColumn(normalStepCount);
+         int row = ensureTimelineRow(Binary.intToHexString(pc) + "  " + instr);
+         tableModel.setValueAt("IF-ID-EX-MEM-WB", row, normalStepCount);
+         explanationArea.setText("Sequential mode: MARS executed one full instruction. Connect the tool in pipelined mode and use Step Cycle to see stage-by-stage overlap.");
          scrollToLastRow();
       }
 
@@ -457,15 +508,268 @@ public class PipelineVisualizerTool extends AbstractMarsToolAndApplication {
          Arrays.fill(dotProgress, 0f);
          Arrays.fill(stageFlash,  0f);
          rowEvents.clear();
+         timelineRows.clear();
+         tableModel.setColumnIdentifiers(new Object[]{"Instruction"});
          tableModel.setRowCount(0);
+         table.getColumnModel().getColumn(0).setPreferredWidth(285);
          headerLabel.setText("  Connect, assemble, then step to animate the pipeline.");
          hazardInfoBar.setBackground(new Color(236, 240, 241));
          hazardInfoBar.setForeground(new Color(127, 140, 141));
          hazardInfoBar.setText(" ");
+         eventBadge.setText("  idle  ");
+         eventBadge.setBackground(new Color(108, 117, 125));
+         explanationArea.setText("");
+         replayButton.setEnabled(false);
+         for (int i = 0; i < stageCards.length; i++) {
+            stageCards[i].update(null, "Waiting for cycle data", null);
+         }
          drawPanel.repaint();
       }
 
       // ── Animation tick ────────────────────────────────────────────────────
+
+      private void replayLastCycle() {
+         if (currentStages == null) return;
+         clearStageAnimations();
+         for (int i = 0; i < currentStages.length; i++) {
+            if (currentStages[i] != null && currentStages[i].valid) stageFlash[i] = 1.0f;
+         }
+         for (int i = 0; i < 4; i++) {
+            if (currentStages[i] != null && currentStages[i].valid) {
+               dotProgress[i] = 0.0f;
+               dotActive[i] = true;
+            }
+         }
+         if (lastCycleEvent.forwardingType == PipelineSimulator.CycleEvent.FWD_EX_TO_EX
+               || lastCycleEvent.forwardingType == PipelineSimulator.CycleEvent.FWD_BOTH) {
+            fwdExExProgress = 0.0f;
+            fwdExExActive = true;
+         }
+         if (lastCycleEvent.forwardingType == PipelineSimulator.CycleEvent.FWD_MEM_TO_EX
+               || lastCycleEvent.forwardingType == PipelineSimulator.CycleEvent.FWD_BOTH) {
+            fwdMemExProgress = 0.0f;
+            fwdMemExActive = true;
+         }
+         updateExplanation(lastCycleEvent);
+         drawPanel.repaint();
+      }
+
+      private void clearStageAnimations() {
+         Arrays.fill(dotActive, false);
+         Arrays.fill(dotProgress, 0f);
+         Arrays.fill(stageFlash, 0f);
+         fwdExExActive = false;
+         fwdMemExActive = false;
+         fwdExExProgress = 0f;
+         fwdMemExProgress = 0f;
+      }
+
+      private void appendTimingColumn(int cycle, PipelineSimulator.StageInfo[] stages,
+                                      PipelineSimulator.CycleEvent evt) {
+         ensureCycleColumn(cycle);
+         for (int i = 0; i < stages.length; i++) {
+            PipelineSimulator.StageInfo stage = stages[i];
+            if (stage == null || !stage.valid) continue;
+            int row = ensureTimelineRow(stageLabel(stage));
+            tableModel.setValueAt(timingCellText(i, evt), row, cycle);
+            rowEvents.set(row, Math.max(rowEvents.get(row), eventType(evt)));
+         }
+         if (evt.stallOccurred && stages[0] != null && stages[0].valid) {
+            int row = ensureTimelineRow(stageLabel(stages[0]));
+            tableModel.setValueAt("ID/ST", row, cycle);
+            rowEvents.set(row, EV_STALL);
+         }
+         if (evt.branchFlush) {
+            int row = ensureTimelineRow("Flushed instructions");
+            tableModel.setValueAt("FLUSH", row, cycle);
+            rowEvents.set(row, EV_FLUSH);
+         }
+      }
+
+      private void ensureCycleColumn(int cycle) {
+         while (tableModel.getColumnCount() <= cycle) {
+            tableModel.addColumn("C" + tableModel.getColumnCount());
+            int idx = tableModel.getColumnCount() - 1;
+            table.getColumnModel().getColumn(idx).setPreferredWidth(72);
+         }
+      }
+
+      private int ensureTimelineRow(String label) {
+         Integer existing = timelineRows.get(label);
+         if (existing != null) return existing.intValue();
+         Object[] row = new Object[tableModel.getColumnCount()];
+         Arrays.fill(row, "");
+         row[0] = label;
+         tableModel.addRow(row);
+         int rowIndex = tableModel.getRowCount() - 1;
+         timelineRows.put(label, Integer.valueOf(rowIndex));
+         rowEvents.add(EV_NORMAL);
+         return rowIndex;
+      }
+
+      private static String timingCellText(int stageIndex, PipelineSimulator.CycleEvent evt) {
+         if (evt.branchFlush && (stageIndex == 0 || stageIndex == 1)) return "FLUSH";
+         if (evt.stallOccurred && stageIndex == 1) return "STALL";
+         String stage = STAGE_NAMES[stageIndex];
+         if (stageIndex == 2 && evt.forwardingType != PipelineSimulator.CycleEvent.FWD_NONE) {
+            return stage + "*";
+         }
+         return stage;
+      }
+
+      private static String stageLabel(PipelineSimulator.StageInfo s) {
+         String instr = fmtCell(s);
+         String pc = s != null && s.valid ? Binary.intToHexString(s.pc) : "";
+         return pc.length() > 0 ? pc + "  " + instr : instr;
+      }
+
+      private void updateStageCards(PipelineSimulator.StageInfo[] stages,
+                                    PipelineSimulator.CycleEvent evt) {
+         for (int i = 0; i < stageCards.length; i++) {
+            PipelineSimulator.StageInfo s = stages[i];
+            String note = stageAction(i, s, evt);
+            Color accent = STAGE_COLORS[i];
+            if (evt.stallOccurred && i == 1 && (s == null || !s.valid)) accent = STALL_COLOR;
+            if (evt.branchFlush && (i == 0 || i == 1)) accent = FLUSH_COLOR;
+            stageCards[i].update(s, note, accent);
+         }
+      }
+
+      private static String stageAction(int stage, PipelineSimulator.StageInfo s,
+                                        PipelineSimulator.CycleEvent evt) {
+         if (evt.branchFlush && (stage == 0 || stage == 1)) return "Flushed after taken branch/jump";
+         if (evt.stallOccurred && stage == 0) return "Held while the load value becomes available";
+         if (evt.stallOccurred && stage == 1 && (s == null || !s.valid)) return "Bubble inserted by hazard detection";
+         if (s == null || !s.valid) return "Pipeline bubble";
+         switch (stage) {
+            case 0: return "Fetch / IF-ID latch";
+            case 1: return "Decode and read registers";
+            case 2:
+               if (evt.forwardingType != PipelineSimulator.CycleEvent.FWD_NONE) return "Execute with forwarded operand";
+               return "Execute / ALU";
+            case 3: return "Memory access or pass ALU result";
+            case 4: return "Write result back / retire";
+            default: return "";
+         }
+      }
+
+      private void updateExplanation(PipelineSimulator.CycleEvent evt) {
+         if (evt.stallOccurred) {
+            String rn = evt.stallReg > 0 ? "$" + regName(evt.stallReg) : "the loaded register";
+            explanationArea.setText("Cycle " + cycleCount + ": A load-use hazard was detected. The instruction in ID needs " + rn +
+               " before the load can write it back, so IF/ID is held and one bubble is inserted into EX.");
+         }
+         else if (evt.branchFlush) {
+            explanationArea.setText("Cycle " + cycleCount + ": A branch or jump was taken in EX. The younger instructions already fetched behind it are flushed, and the next fetch PC is redirected to the target.");
+         }
+         else if (evt.forwardingType != PipelineSimulator.CycleEvent.FWD_NONE) {
+            String msg = "";
+            if (evt.forwardingType == PipelineSimulator.CycleEvent.FWD_EX_TO_EX) {
+               msg = "EX/MEM forwarded $" + regName(evt.fwdExExReg) + " into EX.";
+            }
+            else if (evt.forwardingType == PipelineSimulator.CycleEvent.FWD_MEM_TO_EX) {
+               msg = "MEM/WB forwarded $" + regName(evt.fwdMemExReg) + " into EX.";
+            }
+            else {
+               msg = "Both EX/MEM and MEM/WB forwarding paths were used.";
+            }
+            explanationArea.setText("Cycle " + cycleCount + ": " + msg + " The dependent instruction can continue without waiting for normal write-back.");
+         }
+         else {
+            explanationArea.setText("Cycle " + cycleCount + ": Normal pipeline movement. Each in-flight instruction advances to the next stage, and no hazard action is needed.");
+         }
+      }
+
+      private void updateEventBadge(PipelineSimulator.CycleEvent evt) {
+         if (evt.stallOccurred) {
+            eventBadge.setText("  STALL  ");
+            eventBadge.setBackground(STALL_COLOR);
+         }
+         else if (evt.branchFlush) {
+            eventBadge.setText("  FLUSH  ");
+            eventBadge.setBackground(FLUSH_COLOR);
+         }
+         else if (evt.forwardingType != PipelineSimulator.CycleEvent.FWD_NONE) {
+            eventBadge.setText("  FORWARD  ");
+            eventBadge.setBackground(new Color(52, 152, 219));
+         }
+         else {
+            eventBadge.setText("  NORMAL  ");
+            eventBadge.setBackground(new Color(39, 174, 96));
+         }
+      }
+
+      private static int eventType(PipelineSimulator.CycleEvent evt) {
+         if (evt.stallOccurred) return EV_STALL;
+         if (evt.branchFlush) return EV_FLUSH;
+         if (evt.forwardingType != PipelineSimulator.CycleEvent.FWD_NONE) return EV_FORWARD;
+         return EV_NORMAL;
+      }
+
+      private static class StageCard extends JPanel {
+         private final JLabel titleLabel;
+         private final JLabel instructionLabel;
+         private final JLabel pcLabel;
+         private final JTextArea actionText;
+
+         StageCard(String title, Color color) {
+            setLayout(new BorderLayout(0, 4));
+            setBackground(new Color(250, 251, 252));
+            setBorder(BorderFactory.createCompoundBorder(
+               BorderFactory.createLineBorder(color.darker(), 2),
+               BorderFactory.createEmptyBorder(7, 8, 7, 8)));
+
+            titleLabel = new JLabel(title, JLabel.LEFT);
+            titleLabel.setFont(new Font(Font.SANS_SERIF, Font.BOLD, 13));
+            titleLabel.setForeground(color.darker());
+
+            instructionLabel = new JLabel("bubble");
+            instructionLabel.setFont(new Font(Font.MONOSPACED, Font.BOLD, 11));
+            instructionLabel.setForeground(new Color(36, 48, 60));
+
+            pcLabel = new JLabel(" ");
+            pcLabel.setFont(new Font(Font.MONOSPACED, Font.PLAIN, 10));
+            pcLabel.setForeground(new Color(96, 105, 114));
+
+            actionText = new JTextArea("Waiting for cycle data");
+            actionText.setEditable(false);
+            actionText.setLineWrap(true);
+            actionText.setWrapStyleWord(true);
+            actionText.setOpaque(false);
+            actionText.setFont(new Font(Font.SANS_SERIF, Font.PLAIN, 11));
+            actionText.setForeground(new Color(64, 73, 82));
+
+            JPanel textPanel = new JPanel(new GridLayout(2, 1, 0, 1));
+            textPanel.setOpaque(false);
+            textPanel.add(instructionLabel);
+            textPanel.add(pcLabel);
+
+            add(titleLabel, BorderLayout.NORTH);
+            add(textPanel, BorderLayout.CENTER);
+            add(actionText, BorderLayout.SOUTH);
+         }
+
+         void update(PipelineSimulator.StageInfo info, String note, Color accent) {
+            setBorder(BorderFactory.createCompoundBorder(
+               BorderFactory.createLineBorder(accent.darker(), 2),
+               BorderFactory.createEmptyBorder(7, 8, 7, 8)));
+            titleLabel.setForeground(accent.darker());
+            if (info == null || !info.valid) {
+               instructionLabel.setText("bubble");
+               pcLabel.setText(" ");
+            }
+            else {
+               instructionLabel.setText(trimTo(info.instruction != null ? info.instruction : "", 28));
+               pcLabel.setText(Binary.intToHexString(info.pc));
+            }
+            actionText.setText(note != null ? note : "");
+         }
+
+         private static String trimTo(String value, int max) {
+            if (value == null) return "";
+            return value.length() <= max ? value : value.substring(0, max - 3) + "...";
+         }
+      }
 
       private void tick() {
          boolean dirty = false;
@@ -864,7 +1168,7 @@ public class PipelineVisualizerTool extends AbstractMarsToolAndApplication {
          public Component getTableCellRendererComponent(
                JTable table, Object value, boolean sel, boolean foc, int row, int col) {
             super.getTableCellRendererComponent(table, value, sel, foc, row, col);
-            setHorizontalAlignment(col == 0 ? CENTER : LEFT);
+            setHorizontalAlignment(col == 0 ? LEFT : CENTER);
 
             if (!sel) {
                int evType = (row < rowEvents.size()) ? rowEvents.get(row) : EV_NORMAL;
@@ -892,7 +1196,7 @@ public class PipelineVisualizerTool extends AbstractMarsToolAndApplication {
                      setBackground(bubBg);
                      setForeground(bubFg);
                   } else {
-                     setBackground(lighten(STAGE_COLORS[col - 1], 0.72f));
+                     setBackground(lighten(cellColor(txt), 0.72f));
                      setForeground(new Color(33, 33, 33));
                   }
                   setFont(new Font(Font.MONOSPACED, Font.PLAIN, 11));
@@ -906,6 +1210,17 @@ public class PipelineVisualizerTool extends AbstractMarsToolAndApplication {
                c.getRed()   + (int) ((255 - c.getRed())   * frac),
                c.getGreen() + (int) ((255 - c.getGreen()) * frac),
                c.getBlue()  + (int) ((255 - c.getBlue())  * frac));
+         }
+
+         private Color cellColor(String text) {
+            if ("STALL".equals(text) || "ID/ST".equals(text)) return STALL_COLOR;
+            if ("FLUSH".equals(text)) return FLUSH_COLOR;
+            if (text.startsWith("IF")) return STAGE_COLORS[0];
+            if (text.startsWith("ID")) return STAGE_COLORS[1];
+            if (text.startsWith("EX")) return STAGE_COLORS[2];
+            if (text.startsWith("MEM")) return STAGE_COLORS[3];
+            if (text.startsWith("WB")) return STAGE_COLORS[4];
+            return new Color(180, 185, 190);
          }
       }
    }
