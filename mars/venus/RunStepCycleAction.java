@@ -63,8 +63,6 @@ public class RunStepCycleAction extends GuiAction {
          processProgramArgumentsIfAny();
       }
       mainUI.setStarted(true);
-      // Auto-switch to the Pipeline visualization tab on first step
-      mainUI.messagesPane.selectPipelineTab();
       executePane.getTextSegmentWindow().setCodeHighlighting(true);
       try {
          Globals.program.simulateCycleAtPC(this);
@@ -79,8 +77,6 @@ public class RunStepCycleAction extends GuiAction {
       executePane.getCoprocessor1Window().updateRegisters();
       executePane.getCoprocessor0Window().updateRegisters();
       executePane.getDataSegmentWindow().updateValues();
-
-      mainUI.messagesPane.getPipelineDiagramPanel().update();
 
       if (!done) {
          int address = PipelineSimulator.getInstance().getLastCommittedAddress();
