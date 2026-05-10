@@ -11,3 +11,4 @@
 # Build output
 build/
 out/
+mips1.asm

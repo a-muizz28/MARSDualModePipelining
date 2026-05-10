@@ -170,10 +170,8 @@ WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
 
          this.addTab("Mars Messages", assembleTab);
          this.addTab("Run I/O", runTab);
-         this.addTab("Pipeline", pipelineDiagramPanel);
          this.setToolTipTextAt(0,"Messages produced by Run menu. Click on assemble error message to select erroneous line");
          this.setToolTipTextAt(1,"Simulated MIPS console input and output");
-         this.setToolTipTextAt(2,"5-stage MIPS pipeline visualization (Pipelined execution mode only)");
       }
    	
       // Center given button in a box, centered vertically and 6 pixels on left and right
@@ -340,7 +338,9 @@ WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
 
       /** Make the Pipeline visualization tab current. */
       public void selectPipelineTab() {
-         setSelectedComponent(pipelineDiagramPanel);
+         if (pipelineDiagramPanel.getParent() == this) {
+            setSelectedComponent(pipelineDiagramPanel);
+         }
       }
 
       /** The pipeline diagram panel (for update/reset calls from execution actions). */

@@ -71,7 +71,7 @@ public class PipelineDiagramPanel extends JPanel {
 
       // -- Header --
       headerLabel = new JLabel(
-         "  Switch to Pipelined mode, assemble, then use Step Cycle (F6) to see the visualization.",
+         "  Connect the Pipeline Visualizer tool, assemble, then use Step Cycle (F6) to see the visualization.",
          JLabel.LEFT);
       headerLabel.setFont(new Font(Font.SANS_SERIF, Font.PLAIN, 11));
       headerLabel.setForeground(new Color(44, 62, 80));
@@ -170,7 +170,7 @@ public class PipelineDiagramPanel extends JPanel {
       prevMemwb      = null;
       timingModel.setRowCount(0);
       headerLabel.setText(
-         "  Switch to Pipelined mode, assemble, then use Step Cycle (F6) to see the visualization.");
+         "  Connect the Pipeline Visualizer tool, assemble, then use Step Cycle (F6) to see the visualization.");
       stageDrawPanel.repaint();
    }
 
@@ -211,7 +211,7 @@ public class PipelineDiagramPanel extends JPanel {
             // Placeholder message
             g2.setColor(new Color(127, 140, 141));
             g2.setFont(new Font(Font.SANS_SERIF, Font.ITALIC, 12));
-            String msg = "Pipeline diagram appears here during step-by-step execution in Pipelined mode.";
+            String msg = "Pipeline diagram appears here after connecting the Pipeline Visualizer tool.";
             FontMetrics fm = g2.getFontMetrics();
             int tx = Math.max(8, (W - fm.stringWidth(msg)) / 2);
             g2.drawString(msg, tx, H / 2 + fm.getAscent() / 2);

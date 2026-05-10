@@ -4,6 +4,7 @@ import mars.*;
 import mars.mips.hardware.*;
 import mars.simulator.*;
 import mars.util.Binary;
+import mars.venus.FileStatus;
 
 import javax.swing.*;
 import javax.swing.table.*;
@@ -40,6 +41,11 @@ public class PipelineVisualizerTool extends AbstractMarsToolAndApplication {
 
    private static final String NAME    = "Pipeline Visualizer";
    private static final String HEADING = "5-Stage MIPS Pipeline — Hazard & Forwarding Visualization";
+   private static final Object PIPELINE_MODE_LOCK = new Object();
+   private static int connectedVisualizerCount = 0;
+   private static int savedExecutionModel = ExecutionController.EXECUTION_MODEL_CLASSIC;
+   private static int pendingRestoreModel = ExecutionController.EXECUTION_MODEL_CLASSIC;
+   private static Timer pendingRestoreTimer = null;
 
    // ── Stage palette ─────────────────────────────────────────────────────────
 
@@ -60,6 +66,7 @@ public class PipelineVisualizerTool extends AbstractMarsToolAndApplication {
 
    private AnimatedPipelinePanel animPanel;
    private volatile int lastSeenCycle = -1;
+   private boolean pipelineModeAcquired = false;
 
    // ── AbstractMarsToolAndApplication ───────────────────────────────────────
 
@@ -77,7 +84,23 @@ public class PipelineVisualizerTool extends AbstractMarsToolAndApplication {
 
    @Override
    protected void addAsObserver() {
+      if (FileStatus.get() == FileStatus.RUNNING) {
+         headingLabel.setText("Connect before running the program to enable pipeline visualization.");
+         SwingUtilities.invokeLater(() -> {
+            if (connectButton != null && connectButton.isConnected()) {
+               connectButton.disconnect();
+            }
+         });
+         return;
+      }
+      acquirePipelineMode();
       addAsObserver(Memory.textBaseAddress, Memory.textLimitAddress);
+   }
+
+   @Override
+   protected void deleteAsObserver() {
+      super.deleteAsObserver();
+      releasePipelineMode();
    }
 
    @Override
@@ -105,6 +128,93 @@ public class PipelineVisualizerTool extends AbstractMarsToolAndApplication {
    protected void reset() {
       lastSeenCycle = -1;
       SwingUtilities.invokeLater(() -> { if (animPanel != null) animPanel.reset(); });
+   }
+
+   private void acquirePipelineMode() {
+      synchronized (PIPELINE_MODE_LOCK) {
+         if (pipelineModeAcquired) {
+            return;
+         }
+         boolean hadPendingRestore = cancelPendingRestore();
+         if (connectedVisualizerCount == 0 && !hadPendingRestore) {
+            savedExecutionModel = ExecutionController.getExecutionModel();
+         }
+         connectedVisualizerCount++;
+         pipelineModeAcquired = true;
+      }
+      if (!ExecutionController.isPipelinedMode()) {
+         ExecutionController.setExecutionModel(ExecutionController.EXECUTION_MODEL_PIPELINED);
+      }
+      refreshMenuState();
+   }
+
+   private void releasePipelineMode() {
+      int modelToRestore = ExecutionController.EXECUTION_MODEL_CLASSIC;
+      boolean shouldRestore = false;
+      synchronized (PIPELINE_MODE_LOCK) {
+         if (!pipelineModeAcquired) {
+            return;
+         }
+         pipelineModeAcquired = false;
+         if (connectedVisualizerCount > 0) {
+            connectedVisualizerCount--;
+         }
+         if (connectedVisualizerCount == 0) {
+            modelToRestore = savedExecutionModel;
+            shouldRestore = true;
+         }
+      }
+      if (shouldRestore) {
+         restoreExecutionModelWhenSafe(modelToRestore);
+      }
+   }
+
+   private static boolean cancelPendingRestore() {
+      if (pendingRestoreTimer == null) {
+         return false;
+      }
+      pendingRestoreTimer.stop();
+      pendingRestoreTimer = null;
+      return true;
+   }
+
+   private static void restoreExecutionModelWhenSafe(final int model) {
+      if (FileStatus.get() != FileStatus.RUNNING) {
+         restoreExecutionModel(model);
+         return;
+      }
+      synchronized (PIPELINE_MODE_LOCK) {
+         pendingRestoreModel = model;
+         if (pendingRestoreTimer != null) {
+            return;
+         }
+         pendingRestoreTimer = new Timer(250, null);
+         pendingRestoreTimer.addActionListener(e -> {
+            if (FileStatus.get() == FileStatus.RUNNING) {
+               return;
+            }
+            int modelToRestore;
+            synchronized (PIPELINE_MODE_LOCK) {
+               modelToRestore = pendingRestoreModel;
+               cancelPendingRestore();
+            }
+            restoreExecutionModel(modelToRestore);
+         });
+         pendingRestoreTimer.start();
+      }
+   }
+
+   private static void restoreExecutionModel(int model) {
+      if (ExecutionController.getExecutionModel() != model) {
+         ExecutionController.setExecutionModel(model);
+      }
+      refreshMenuState();
+   }
+
+   private static void refreshMenuState() {
+      if (Globals.getGui() != null) {
+         FileStatus.set(FileStatus.get());
+      }
    }
 
    private String fetchInstrText(int addr) {

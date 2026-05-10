@@ -542,10 +542,16 @@ public class PipelineSimulator {
          if (state.idex.valid && state.idex.memRead && state.idex.writeReg != 0) {
             hazardReg = state.idex.writeReg;
          }
+         boolean syscallNeedsRegisterDrain = decoded.kind == DecodedInstruction.SYSCALL &&
+             ((state.idex.valid && state.idex.regWrite && state.idex.writeReg != 0) ||
+              (state.exmem.valid && state.exmem.regWrite && state.exmem.writeReg != 0));
          if (hazardReg != 0 &&
              ((decoded.readRs && decoded.rs == hazardReg) || (decoded.readRt && decoded.rt == hazardReg))) {
             stall = true;
             capturedHazardReg = hazardReg;
+         }
+         else if (syscallNeedsRegisterDrain) {
+            stall = true;
          }
          else {
             nextIdex.valid = true;

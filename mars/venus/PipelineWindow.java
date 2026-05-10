@@ -62,7 +62,7 @@ public class PipelineWindow extends JFrame {
       topBtn.setToolTipText("Keep this window above all others");
       topBtn.addActionListener(e -> setAlwaysOnTop(topBtn.isSelected()));
 
-      JLabel hint = new JLabel("  Use  Run → Step Cycle  (F6)  to advance the pipeline one cycle at a time.");
+      JLabel hint = new JLabel("  Connect the Pipeline Visualizer tool, then use Run → Step Cycle (F6).");
       hint.setFont(new Font(Font.SANS_SERIF, Font.ITALIC, 11));
       hint.setForeground(new Color(189, 195, 199));
 

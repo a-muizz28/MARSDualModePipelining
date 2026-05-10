@@ -338,7 +338,7 @@ WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
                									  mainUI);	
             runStepCycleAction = new RunStepCycleAction("Step Cycle",
                                             new ImageIcon(tk.getImage(cs.getResource(Globals.imagesPath+"StepForward22.png"))),
-              									  "Advance one pipeline cycle (pipelined mode only)", KeyEvent.VK_Y,
+             									  "Advance one pipeline cycle when the Pipeline Visualizer is connected", KeyEvent.VK_Y,
               									  KeyStroke.getKeyStroke( KeyEvent.VK_F6, 0),
               									  mainUI);
             runBackstepAction = new RunBackstepAction("Backstep", 
@@ -594,18 +594,6 @@ WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
          run.add(runPause);
          run.add(runStop);
          run.add(runReset);
-         run.addSeparator();
-         runExecutionModel = new JMenu("Execution Model");
-         runExecutionClassic = new JRadioButtonMenuItem(runSetClassicExecutionModelAction);
-         runExecutionPipelined = new JRadioButtonMenuItem(runSetPipelineExecutionModelAction);
-         ButtonGroup executionModeButtonGroup = new ButtonGroup();
-         executionModeButtonGroup.add(runExecutionClassic);
-         executionModeButtonGroup.add(runExecutionPipelined);
-         runExecutionClassic.setSelected(ExecutionController.isClassicMode());
-         runExecutionPipelined.setSelected(ExecutionController.isPipelinedMode());
-         runExecutionModel.add(runExecutionClassic);
-         runExecutionModel.add(runExecutionPipelined);
-         run.add(runExecutionModel);
          run.addSeparator();
          run.add(runClearBreakpoints);
          run.add(runToggleBreakpoints);
