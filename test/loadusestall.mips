@@ -1,0 +1,11 @@
+.text
+main:
+    addiu $sp, $sp, -4       # Move stack pointer down by 4 bytes
+
+    addiu $t0, $zero, 21     # $t0 = 21
+    sw    $t0, 0($sp)        # Store 21 at memory address 0($sp)
+
+    lw    $t1, 0($sp)        # Load memory value into $t1
+    addu  $t2, $t1, $t1      # Uses $t1 immediately after lw
+                              # Load-use hazard: value is not ready soon enough
+                              # Pipeline should insert a stall / bubble

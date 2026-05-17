@@ -276,6 +276,7 @@ public class PipelineSimulator {
       int fwdExExReg      = -1;  // register forwarded EX/MEM → ID/EX (-1 = none)
       int fwdMemExReg     = -1;  // register forwarded MEM/WB → ID/EX (-1 = none)
       int capturedHazardReg = 0; // register causing a load-use stall
+      int stallReason = CycleEvent.STALL_NONE;
 
       int retiredThisCycle = 0;
       int committedAddressThisCycle = -1;
@@ -549,9 +550,11 @@ public class PipelineSimulator {
              ((decoded.readRs && decoded.rs == hazardReg) || (decoded.readRt && decoded.rt == hazardReg))) {
             stall = true;
             capturedHazardReg = hazardReg;
+            stallReason = CycleEvent.STALL_LOAD_USE;
          }
          else if (syscallNeedsRegisterDrain) {
             stall = true;
+            stallReason = CycleEvent.STALL_SYSCALL_DRAIN;
          }
          else {
             nextIdex.valid = true;
@@ -632,7 +635,7 @@ public class PipelineSimulator {
       else if (fwdExExReg >= 0)                      fwdType = CycleEvent.FWD_EX_TO_EX;
       else if (fwdMemExReg >= 0)                     fwdType = CycleEvent.FWD_MEM_TO_EX;
       lastCycleEvent = new CycleEvent(stall, branchTaken, fwdType,
-            capturedHazardReg, fwdExExReg, fwdMemExReg);
+            capturedHazardReg, fwdExExReg, fwdMemExReg, stallReason);
 
       return result;
    }
@@ -915,9 +918,12 @@ public class PipelineSimulator {
       public static final int FWD_EX_TO_EX  = 1;  // EX/MEM latch → ID/EX input
       public static final int FWD_MEM_TO_EX = 2;  // MEM/WB latch → ID/EX input
       public static final int FWD_BOTH      = 3;  // both paths simultaneously
+      public static final int STALL_NONE          = 0;
+      public static final int STALL_LOAD_USE      = 1;
+      public static final int STALL_SYSCALL_DRAIN = 2;
 
       public static final CycleEvent NONE =
-         new CycleEvent(false, false, FWD_NONE, -1, -1, -1);
+         new CycleEvent(false, false, FWD_NONE, -1, -1, -1, STALL_NONE);
 
       public final boolean stallOccurred;   // load-use stall was inserted
       public final boolean branchFlush;     // branch/jump caused a pipeline flush
@@ -925,16 +931,19 @@ public class PipelineSimulator {
       public final int     stallReg;        // register that caused the stall (-1 = n/a)
       public final int     fwdExExReg;      // register forwarded via EX/MEM→EX (-1 = n/a)
       public final int     fwdMemExReg;     // register forwarded via MEM/WB→EX (-1 = n/a)
+      public final int     stallReason;     // one of STALL_* constants
 
       public CycleEvent(boolean stallOccurred, boolean branchFlush,
                         int forwardingType, int stallReg,
-                        int fwdExExReg, int fwdMemExReg) {
+                        int fwdExExReg, int fwdMemExReg,
+                        int stallReason) {
          this.stallOccurred  = stallOccurred;
          this.branchFlush    = branchFlush;
          this.forwardingType = forwardingType;
          this.stallReg       = stallReg;
          this.fwdExExReg     = fwdExExReg;
          this.fwdMemExReg    = fwdMemExReg;
+         this.stallReason    = stallReason;
       }
    }
 

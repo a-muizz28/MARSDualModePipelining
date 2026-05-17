@@ -111,10 +111,10 @@ public class PipelineVisualizerTool extends AbstractMarsToolAndApplication {
       if (notice.getAccessType() != AccessNotice.READ) return;
 
       if (ExecutionController.isPipelinedMode()) {
-         int cycle = PipelineSimulator.getInstance().getCycleCount();
-         if (cycle == lastSeenCycle) return;
-         lastSeenCycle = cycle;
-         SwingUtilities.invokeLater(() -> { if (animPanel != null) animPanel.advance(); });
+         // Pipelined updates are polled from the panel timer, because stall/drain
+         // cycles may not fetch an instruction and therefore may not emit a text
+         // memory read notice.
+         return;
       } else {
          MemoryAccessNotice man = (MemoryAccessNotice) notice;
          int    addr  = man.getAddress();
@@ -232,8 +232,11 @@ public class PipelineVisualizerTool extends AbstractMarsToolAndApplication {
 
    private static String regName(int reg) {
       if (reg < 0) return "?";
-      try { return RegisterFile.getRegisters()[reg].getName(); }
-      catch (Exception e) { return "$" + reg; }
+      try {
+         String name = RegisterFile.getRegisters()[reg].getName();
+         return name != null && name.startsWith("$") ? name.substring(1) : name;
+      }
+      catch (Exception e) { return "" + reg; }
    }
 
    // ═══════════════════════════════════════════════════════════════════════════
@@ -655,9 +658,14 @@ public class PipelineVisualizerTool extends AbstractMarsToolAndApplication {
 
       private void updateExplanation(PipelineSimulator.CycleEvent evt) {
          if (evt.stallOccurred) {
-            String rn = evt.stallReg > 0 ? "$" + regName(evt.stallReg) : "the loaded register";
-            explanationArea.setText("Cycle " + cycleCount + ": A load-use hazard was detected. The instruction in ID needs " + rn +
-               " before the load can write it back, so IF/ID is held and one bubble is inserted into EX.");
+            if (evt.stallReason == PipelineSimulator.CycleEvent.STALL_SYSCALL_DRAIN) {
+               explanationArea.setText("Cycle " + cycleCount + ": The syscall is being held in decode until earlier register writes become visible. Syscall handlers read architectural registers such as $v0 and $a0, so the pipeline drains in front of syscall and inserts a bubble into EX.");
+            }
+            else {
+               String rn = evt.stallReg > 0 ? "$" + regName(evt.stallReg) : "the loaded register";
+               explanationArea.setText("Cycle " + cycleCount + ": A load-use hazard was detected. The instruction in ID needs " + rn +
+                  " before the load can write it back, so IF/ID is held and one bubble is inserted into EX.");
+            }
          }
          else if (evt.branchFlush) {
             explanationArea.setText("Cycle " + cycleCount + ": A branch or jump was taken in EX. The younger instructions already fetched behind it are flushed, and the next fetch PC is redirected to the target.");
@@ -759,7 +767,7 @@ public class PipelineVisualizerTool extends AbstractMarsToolAndApplication {
                pcLabel.setText(" ");
             }
             else {
-               instructionLabel.setText(trimTo(info.instruction != null ? info.instruction : "", 28));
+               instructionLabel.setText(trimTo(displayInstruction(info.instruction), 28));
                pcLabel.setText(Binary.intToHexString(info.pc));
             }
             actionText.setText(note != null ? note : "");
@@ -773,6 +781,14 @@ public class PipelineVisualizerTool extends AbstractMarsToolAndApplication {
 
       private void tick() {
          boolean dirty = false;
+
+         if (ExecutionController.isPipelinedMode()) {
+            int simCycle = PipelineSimulator.getInstance().getCycleCount();
+            if (simCycle > 0 && simCycle != cycleCount) {
+               advance();
+               dirty = true;
+            }
+         }
 
          // Inter-stage flowing dots (pipelined mode)
          for (int i = 0; i < 4; i++) {
@@ -823,18 +839,45 @@ public class PipelineVisualizerTool extends AbstractMarsToolAndApplication {
 
       private static String fmtCell(PipelineSimulator.StageInfo s) {
          if (s == null || !s.valid) return "—";
-         if (s.instruction != null && !s.instruction.isEmpty()) return s.instruction;
+         if (s.instruction != null && !s.instruction.isEmpty()) return displayInstruction(s.instruction);
          return Binary.intToHexString(s.pc);
+      }
+
+      private static String displayInstruction(String instruction) {
+         if (instruction == null || instruction.length() == 0) return "";
+         java.util.regex.Matcher matcher = java.util.regex.Pattern
+            .compile("\\$(\\d+)")
+            .matcher(instruction);
+         StringBuffer sb = new StringBuffer();
+         while (matcher.find()) {
+            int reg;
+            try {
+               reg = Integer.parseInt(matcher.group(1));
+            }
+            catch (NumberFormatException nfe) {
+               continue;
+            }
+            String replacement = "$" + regName(reg);
+            matcher.appendReplacement(sb, java.util.regex.Matcher.quoteReplacement(replacement));
+         }
+         matcher.appendTail(sb);
+         return sb.toString();
       }
 
       private void updateHazardBar(PipelineSimulator.CycleEvent evt) {
          if (evt.stallOccurred) {
             hazardInfoBar.setBackground(new Color(255, 243, 205));
             hazardInfoBar.setForeground(new Color(130,  80,   0));
-            String rn = evt.stallReg > 0 ? regName(evt.stallReg) : "?";
-            hazardInfoBar.setText(
-               "  ⚠  Load-use hazard — 1 stall cycle inserted  " +
-               "(lw result in $" + rn + " needed by the following instruction)");
+            if (evt.stallReason == PipelineSimulator.CycleEvent.STALL_SYSCALL_DRAIN) {
+               hazardInfoBar.setText(
+                  "  Syscall drain - waiting for pending $v0/$a0 register writes before executing syscall");
+            }
+            else {
+               String rn = evt.stallReg > 0 ? regName(evt.stallReg) : "?";
+               hazardInfoBar.setText(
+                  "  Load-use hazard - 1 stall cycle inserted  " +
+                  "(lw result in $" + rn + " needed by the following instruction)");
+            }
          } else if (evt.branchFlush) {
             hazardInfoBar.setBackground(new Color(255, 220, 220));
             hazardInfoBar.setForeground(new Color(150,   0,   0));
@@ -918,7 +961,7 @@ public class PipelineVisualizerTool extends AbstractMarsToolAndApplication {
                for (int i = 0; i < 5; i++) {
                   PipelineSimulator.StageInfo si = currentStages[i];
                   stageValid[i] = si != null && si.valid;
-                  stageInstr[i] = si != null ? si.instruction : null;
+                  stageInstr[i] = si != null ? displayInstruction(si.instruction) : null;
                   stagePCArr[i] = si != null ? si.pc : 0;
                }
                // Determine bubble type per stage
@@ -1069,7 +1112,7 @@ public class PipelineVisualizerTool extends AbstractMarsToolAndApplication {
                if (fwdType == PipelineSimulator.CycleEvent.FWD_EX_TO_EX ||
                    fwdType == PipelineSimulator.CycleEvent.FWD_BOTH) {
                   drawForwardingArc(g2,
-                     stageX[2], stageX[1], arcBaseY, paintedBoxW,
+                     stageX[3], stageX[2], arcBaseY, paintedBoxW,
                      STAGE_COLORS[2],
                      "$" + regName(lastCycleEvent.fwdExExReg) + "  EX→EX",
                      fwdExExProgress, fwdExExActive, 28);
@@ -1077,7 +1120,7 @@ public class PipelineVisualizerTool extends AbstractMarsToolAndApplication {
                if (fwdType == PipelineSimulator.CycleEvent.FWD_MEM_TO_EX ||
                    fwdType == PipelineSimulator.CycleEvent.FWD_BOTH) {
                   drawForwardingArc(g2,
-                     stageX[3], stageX[1], arcBaseY, paintedBoxW,
+                     stageX[4], stageX[2], arcBaseY, paintedBoxW,
                      STAGE_COLORS[3],
                      "$" + regName(lastCycleEvent.fwdMemExReg) + "  MEM→EX",
                      fwdMemExProgress, fwdMemExActive, 44);
