@@ -11,6 +11,7 @@ import javax.swing.table.*;
 import java.awt.*;
 import java.awt.event.*;
 import java.awt.geom.*;
+import java.io.File;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.HashMap;
@@ -284,6 +285,10 @@ public class PipelineVisualizerTool extends AbstractMarsToolAndApplication {
       private final JLabel            hazardInfoBar;
       private final JLabel            eventBadge;
       private final JTextArea         explanationArea;
+      private final JButton           forwardingDemoButton;
+      private final JButton           loadStallDemoButton;
+      private final JButton           storeForwardingDemoButton;
+      private final JButton           branchFlushDemoButton;
       private final JButton           replayButton;
       private final JButton           clearButton;
       private final DrawPanel         drawPanel;
@@ -311,6 +316,22 @@ public class PipelineVisualizerTool extends AbstractMarsToolAndApplication {
          eventBadge.setBackground(new Color(108, 117, 125));
          eventBadge.setBorder(BorderFactory.createEmptyBorder(4, 10, 4, 10));
 
+         forwardingDemoButton = new JButton("Forward");
+         forwardingDemoButton.setToolTipText("Open test/forwarding.asm");
+         forwardingDemoButton.addActionListener(e -> openDemoFile("forwarding.asm"));
+
+         loadStallDemoButton = new JButton("Load Stall");
+         loadStallDemoButton.setToolTipText("Open test/loadusestall.mips");
+         loadStallDemoButton.addActionListener(e -> openDemoFile("loadusestall.mips"));
+
+         storeForwardingDemoButton = new JButton("Store Fwd");
+         storeForwardingDemoButton.setToolTipText("Open test/storeforwarding.asm");
+         storeForwardingDemoButton.addActionListener(e -> openDemoFile("storeforwarding.asm"));
+
+         branchFlushDemoButton = new JButton("Branch");
+         branchFlushDemoButton.setToolTipText("Open test/branchflush.asm");
+         branchFlushDemoButton.addActionListener(e -> openDemoFile("branchflush.asm"));
+
          replayButton = new JButton("Replay Cycle");
          replayButton.setToolTipText("Replay the most recent visual cycle without executing it again");
          replayButton.setEnabled(false);
@@ -325,6 +346,10 @@ public class PipelineVisualizerTool extends AbstractMarsToolAndApplication {
          headerPanel.setBackground(new Color(238, 241, 244));
          JPanel controls = new JPanel(new FlowLayout(FlowLayout.RIGHT, 6, 0));
          controls.setOpaque(false);
+         controls.add(forwardingDemoButton);
+         controls.add(loadStallDemoButton);
+         controls.add(storeForwardingDemoButton);
+         controls.add(branchFlushDemoButton);
          controls.add(eventBadge);
          controls.add(replayButton);
          controls.add(clearButton);
@@ -527,6 +552,18 @@ public class PipelineVisualizerTool extends AbstractMarsToolAndApplication {
             stageCards[i].update(null, "Waiting for cycle data", null);
          }
          drawPanel.repaint();
+      }
+
+      private void openDemoFile(String fileName) {
+         if (Globals.getGui() == null) return;
+         File file = new File("test", fileName);
+         if (!file.canRead()) {
+            JOptionPane.showMessageDialog(this,
+               "Could not open test/" + fileName,
+               "Pipeline Visualizer", JOptionPane.ERROR_MESSAGE);
+            return;
+         }
+         Globals.getGui().getEditor().open(file);
       }
 
       // ── Animation tick ────────────────────────────────────────────────────

@@ -236,6 +236,15 @@ WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
        public boolean open() {
          return editTabbedPane.openFile();
       }
+
+      /**
+       * Open file in a new tab without displaying the file chooser.
+       * @param file file to open
+       * @return true if the file was opened, false otherwise
+       */
+       public boolean open(File file) {
+         return editTabbedPane.openFile(file);
+      }
    
    
    

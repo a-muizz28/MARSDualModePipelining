@@ -1,8 +1,10 @@
 # Compiled Java class files
 *.class
+.DS_Store
 
 # Executable JAR
 *.jar
+!Mars.jar
 
 # IntelliJ IDEA project files
 .idea/
